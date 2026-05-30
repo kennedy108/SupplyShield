@@ -1,0 +1,11 @@
+shipment_id,shipment_date,item,origin,destination,requested_destination,quantity,typical_quantity,expected_days,actual_days,route_changes
+SHP-101,2026-05-01,Fuel,Depot North,Base Alpha,Base Alpha,900,950,2,2,0
+SHP-102,2026-05-04,Medical Kits,Depot West,Base Echo,Base Echo,500,220,3,8,2
+SHP-103,2026-05-07,Food Rations,Depot North,Base Bravo,Base Bravo,6500,2400,3,4,0
+SHP-104,2026-05-10,Fuel,Depot East,Base Delta,Base Delta,1100,1000,2,5,1
+SHP-105,2026-05-13,Medical Kits,Depot West,Base Bravo,Base Alpha,280,250,3,3,1
+SHP-106,2026-05-16,Food Rations,Depot South,Base Echo,Base Echo,1600,1700,2,2,0
+SHP-107,2026-05-19,Fuel,Depot East,Base Echo,Base Echo,700,850,2,7,2
+SHP-108,2026-05-22,Medical Kits,Depot North,Base Alpha,Base Alpha,190,220,2,3,0
+SHP-109,2026-05-25,Food Rations,Depot South,Base Delta,Base Delta,1800,1750,3,3,0
+SHP-110,2026-05-28,Fuel,Depot North,Base Bravo,Base Delta,2500,900,2,6,2
