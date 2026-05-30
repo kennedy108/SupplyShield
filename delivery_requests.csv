@@ -1,8 +1,0 @@
-request_id,location,item,requested_quantity,mission_importance,people_affected,incoming_shipment_delayed
-REQ-201,Base Alpha,Medical Kits,350,8,240,True
-REQ-202,Base Bravo,Food Rations,1400,7,500,True
-REQ-203,Base Echo,Medical Kits,500,10,150,True
-REQ-204,Base Echo,Fuel,1200,9,320,True
-REQ-205,Base Alpha,Fuel,850,6,300,False
-REQ-206,Base Delta,Food Rations,900,5,410,False
-REQ-207,Base Bravo,Fuel,1000,8,470,False
