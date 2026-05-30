@@ -27,17 +27,164 @@ LOCATION_COORDS = {
 }
 
 
-def load_csv(uploaded_file, fallback_path: Path) -> pd.DataFrame:
-    if uploaded_file is not None:
-        return pd.read_csv(uploaded_file)
-    return pd.read_csv(fallback_path)
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB per CSV
+MAX_ROWS_PER_DATASET = 5_000
+MAX_TEXT_LENGTH = 100
+
+
+def validation_error(message: str):
+    """Show a safe, user-friendly validation error and stop the current run."""
+    st.error(message)
+    st.stop()
+
+
+def load_csv(uploaded_file, fallback_path: Path, dataset_name: str) -> pd.DataFrame:
+    """Load an uploaded CSV or the bundled demo CSV with basic resource limits."""
+    source = uploaded_file if uploaded_file is not None else fallback_path
+
+    if uploaded_file is not None and uploaded_file.size > MAX_UPLOAD_BYTES:
+        validation_error(
+            f"{dataset_name} is too large. Upload a CSV smaller than "
+            f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB."
+        )
+
+    try:
+        df = pd.read_csv(source)
+    except pd.errors.EmptyDataError:
+        validation_error(f"{dataset_name} is empty. Upload a CSV with headers and at least one row.")
+    except pd.errors.ParserError:
+        validation_error(f"{dataset_name} could not be parsed as a valid CSV file.")
+    except UnicodeDecodeError:
+        validation_error(f"{dataset_name} must be saved as a UTF-8 CSV file.")
+    except Exception:
+        validation_error(f"{dataset_name} could not be read. Check the file format and try again.")
+
+    if df.empty:
+        validation_error(f"{dataset_name} must contain at least one data row.")
+    if len(df) > MAX_ROWS_PER_DATASET:
+        validation_error(
+            f"{dataset_name} has {len(df):,} rows. The maximum allowed is "
+            f"{MAX_ROWS_PER_DATASET:,}."
+        )
+
+    return df
 
 
 def validate_columns(df: pd.DataFrame, required_columns: list[str], dataset_name: str):
     missing = [column for column in required_columns if column not in df.columns]
     if missing:
-        st.error(f"{dataset_name} is missing required column(s): {', '.join(missing)}")
-        st.stop()
+        validation_error(f"{dataset_name} is missing required column(s): {', '.join(missing)}")
+
+
+def clean_text_columns(df: pd.DataFrame, columns: list[str], dataset_name: str):
+    for column in columns:
+        if df[column].isna().any():
+            validation_error(f"{dataset_name}: '{column}' cannot contain blank values.")
+
+        df[column] = df[column].astype(str).str.strip()
+        if (df[column] == "").any():
+            validation_error(f"{dataset_name}: '{column}' cannot contain blank values.")
+        if (df[column].str.len() > MAX_TEXT_LENGTH).any():
+            validation_error(
+                f"{dataset_name}: values in '{column}' must be {MAX_TEXT_LENGTH} characters or fewer."
+            )
+
+
+def clean_numeric_column(
+    df: pd.DataFrame,
+    column: str,
+    dataset_name: str,
+    *,
+    minimum: float | None = None,
+    maximum: float | None = None,
+    integer_only: bool = False,
+):
+    converted = pd.to_numeric(df[column], errors="coerce")
+    if converted.isna().any():
+        validation_error(f"{dataset_name}: '{column}' must contain only numeric values.")
+    if minimum is not None and (converted < minimum).any():
+        validation_error(f"{dataset_name}: '{column}' must be at least {minimum}.")
+    if maximum is not None and (converted > maximum).any():
+        validation_error(f"{dataset_name}: '{column}' must be no greater than {maximum}.")
+    if integer_only and (converted % 1 != 0).any():
+        validation_error(f"{dataset_name}: '{column}' must contain whole numbers only.")
+
+    df[column] = converted.astype("int64") if integer_only else converted.astype("float64")
+
+
+def validate_unique(df: pd.DataFrame, columns: list[str], dataset_name: str):
+    if df.duplicated(subset=columns).any():
+        validation_error(
+            f"{dataset_name}: duplicate value(s) found for {', '.join(columns)}. "
+            "Each record must be unique."
+        )
+
+
+def validate_boolean_column(df: pd.DataFrame, column: str, dataset_name: str):
+    allowed = {"true": True, "1": True, "yes": True, "y": True, "false": False, "0": False, "no": False, "n": False}
+    normalized = df[column].astype(str).str.strip().str.lower()
+    invalid = ~normalized.isin(allowed)
+    if invalid.any():
+        validation_error(
+            f"{dataset_name}: '{column}' must use True/False, Yes/No, or 1/0 values only."
+        )
+    df[column] = normalized.map(allowed)
+
+
+def validate_inventory(inventory: pd.DataFrame):
+    dataset_name = "Inventory CSV"
+    clean_text_columns(inventory, ["location", "item"], dataset_name)
+    clean_numeric_column(inventory, "current_stock", dataset_name, minimum=0)
+    clean_numeric_column(inventory, "daily_usage", dataset_name, minimum=0.000001)
+    clean_numeric_column(inventory, "minimum_safe_stock", dataset_name, minimum=0)
+    validate_unique(inventory, ["location", "item"], dataset_name)
+
+
+def validate_shipments(shipments: pd.DataFrame, inventory: pd.DataFrame):
+    dataset_name = "Shipments CSV"
+    clean_text_columns(
+        shipments,
+        ["shipment_id", "item", "origin", "destination", "requested_destination"],
+        dataset_name,
+    )
+    clean_numeric_column(shipments, "quantity", dataset_name, minimum=0.000001)
+    clean_numeric_column(shipments, "typical_quantity", dataset_name, minimum=0.000001)
+    clean_numeric_column(shipments, "expected_days", dataset_name, minimum=0, integer_only=True)
+    clean_numeric_column(shipments, "actual_days", dataset_name, minimum=0, integer_only=True)
+    clean_numeric_column(shipments, "route_changes", dataset_name, minimum=0, integer_only=True)
+    validate_unique(shipments, ["shipment_id"], dataset_name)
+
+    valid_items = set(inventory["item"])
+    unknown_items = sorted(set(shipments["item"]) - valid_items)
+    if unknown_items:
+        validation_error(
+            f"{dataset_name}: unknown item(s) not found in inventory.csv: {', '.join(unknown_items)}"
+        )
+
+    if "shipment_date" in shipments.columns:
+        parsed_dates = pd.to_datetime(shipments["shipment_date"], errors="coerce")
+        if parsed_dates.isna().any():
+            validation_error(f"{dataset_name}: 'shipment_date' contains an invalid date.")
+        shipments["shipment_date"] = parsed_dates.dt.strftime("%Y-%m-%d")
+
+
+def validate_requests(requests: pd.DataFrame, inventory: pd.DataFrame):
+    dataset_name = "Delivery requests CSV"
+    clean_text_columns(requests, ["request_id", "location", "item"], dataset_name)
+    clean_numeric_column(requests, "requested_quantity", dataset_name, minimum=0.000001)
+    clean_numeric_column(requests, "mission_importance", dataset_name, minimum=1, maximum=10, integer_only=True)
+    clean_numeric_column(requests, "people_affected", dataset_name, minimum=0, integer_only=True)
+    validate_boolean_column(requests, "incoming_shipment_delayed", dataset_name)
+    validate_unique(requests, ["request_id"], dataset_name)
+
+    inventory_pairs = set(zip(inventory["location"], inventory["item"]))
+    request_pairs = set(zip(requests["location"], requests["item"]))
+    unknown_pairs = sorted(request_pairs - inventory_pairs)
+    if unknown_pairs:
+        formatted = ", ".join(f"{location} / {item}" for location, item in unknown_pairs)
+        validation_error(
+            f"{dataset_name}: request location/item pair(s) not found in inventory.csv: {formatted}"
+        )
 
 
 def load_data():
@@ -54,9 +201,9 @@ def load_data():
         "Upload delivery_requests.csv", type=["csv"], key="requests_upload"
     )
 
-    inventory = load_csv(uploaded_inventory, DATA_DIR / "inventory.csv")
-    shipments = load_csv(uploaded_shipments, DATA_DIR / "shipments.csv")
-    requests = load_csv(uploaded_requests, DATA_DIR / "delivery_requests.csv")
+    inventory = load_csv(uploaded_inventory, DATA_DIR / "inventory.csv", "Inventory CSV")
+    shipments = load_csv(uploaded_shipments, DATA_DIR / "shipments.csv", "Shipments CSV")
+    requests = load_csv(uploaded_requests, DATA_DIR / "delivery_requests.csv", "Delivery requests CSV")
 
     validate_columns(
         inventory,
@@ -93,6 +240,10 @@ def load_data():
         "Delivery requests CSV",
     )
 
+    validate_inventory(inventory)
+    validate_shipments(shipments, inventory)
+    validate_requests(requests, inventory)
+
     if "shipment_date" not in shipments.columns:
         shipments["shipment_date"] = pd.date_range(
             end=pd.Timestamp.today().normalize(),
@@ -106,7 +257,6 @@ def load_data():
 
     st.sidebar.success(f"Current source: {source_label}")
     return inventory, shipments, requests
-
 
 def classify_inventory_risk(days_until_unsafe: float) -> str:
     if pd.isna(days_until_unsafe):
