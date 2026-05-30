@@ -1,0 +1,3 @@
+[server]
+# Reject uploads larger than 5 MB before the app processes them.
+maxUploadSize = 5
