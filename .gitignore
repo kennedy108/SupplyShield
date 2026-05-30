@@ -1,7 +1,6 @@
 .venv/
 __pycache__/
 *.pyc
-.DS_Store.streamlit/secrets.toml
-.streamlit/secrets.toml
-.venv/
 .DS_Store
+.streamlit/secrets.toml
+echo ".streamlit/secrets.toml" >> .gitignore
