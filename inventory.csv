@@ -1,0 +1,13 @@
+location,item,current_stock,daily_usage,minimum_safe_stock
+Base Alpha,Fuel,1500,240,800
+Base Alpha,Medical Kits,180,25,100
+Base Alpha,Food Rations,2100,180,900
+Base Bravo,Fuel,900,220,700
+Base Bravo,Medical Kits,420,35,180
+Base Bravo,Food Rations,430,130,500
+Base Echo,Fuel,640,170,550
+Base Echo,Medical Kits,130,45,100
+Base Echo,Food Rations,920,150,700
+Base Delta,Fuel,2300,190,900
+Base Delta,Medical Kits,540,30,160
+Base Delta,Food Rations,1500,140,800
