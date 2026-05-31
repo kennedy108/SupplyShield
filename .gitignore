@@ -3,4 +3,5 @@ __pycache__/
 *.pyc
 .DS_Store
 .streamlit/secrets.toml
-echo ".streamlit/secrets.toml" >> .gitignore
+echo ".streamlit/secrets.toml" >> .gitignore.streamlit/secrets.toml
+.streamlit/secrets.toml
