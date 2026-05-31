@@ -909,7 +909,23 @@ def show_route_intelligence(shipment_risk: pd.DataFrame):
         st.dataframe(map_df, use_container_width=True, hide_index=True)
 
     else:
-        st.warning("This shipment uses locations that are not in the demo coordinate map.")
+        missing_locations = []
+
+        if origin not in LOCATION_COORDS:
+            missing_locations.append(origin)
+
+        if destination not in LOCATION_COORDS:
+            missing_locations.append(destination)
+
+        if requested_destination not in LOCATION_COORDS:
+            missing_locations.append(requested_destination)
+
+        st.warning(
+            "These location names are missing from LOCATION_COORDS: "
+            + ", ".join(sorted(set(missing_locations)))
+        )
+
+        st.write("Supported locations:", list(LOCATION_COORDS.keys()))
 
     left, right = st.columns(2)
 
