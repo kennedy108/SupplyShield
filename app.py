@@ -797,9 +797,9 @@ def show_route_intelligence(shipment_risk: pd.DataFrame):
     selected_id = st.selectbox("Choose a shipment", shipment_risk["shipment_id"].tolist())
     selected = shipment_risk[shipment_risk["shipment_id"] == selected_id].iloc[0]
 
-    origin = str(selected["origin"])
-    destination = str(selected["destination"])
-    requested_destination = str(selected["requested_destination"])
+    origin = str(selected["origin"]).strip()
+    destination = str(selected["destination"]).strip()
+    requested_destination = str(selected["requested_destination"]).strip()
 
     map_rows = []
 
@@ -1062,7 +1062,8 @@ def main():
     elif page == "Origin Reliability Monitor":
         show_reliability_monitor(origin_reliability)
     elif page == "Historical Risk Trends":
-        show_historical_trends(shipment_risk)
+        show_
+        historical_trends(shipment_risk)
     else:
         show_cyber_simulator(shipment_risk)
 
