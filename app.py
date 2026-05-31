@@ -6,6 +6,7 @@ import os
 
 import pandas as pd
 import streamlit as st
+import pydeck as pdk
 
 st.set_page_config(
     page_title="SupplyShield",
@@ -822,10 +823,91 @@ def show_route_intelligence(shipment_risk: pd.DataFrame):
             }
         )
 
-    if map_rows:
-        map_df = pd.DataFrame(map_rows)
-        st.map(map_df[["lat", "lon"]], use_container_width=True)
+        if map_rows:
+            map_df = pd.DataFrame(map_rows)
+
+        route_rows = []
+
+        # Red line: actual shipment route
+        if origin in LOCATION_COORDS and destination in LOCATION_COORDS:
+            origin_lat, origin_lon = LOCATION_COORDS[origin]
+            destination_lat, destination_lon = LOCATION_COORDS[destination]
+
+            route_rows.append(
+                {
+                    "route_type": "Actual shipment route",
+                    "start_lon": origin_lon,
+                    "start_lat": origin_lat,
+                    "end_lon": destination_lon,
+                    "end_lat": destination_lat,
+                    "color": [255, 70, 70],
+                }
+            )
+
+        # Blue line: originally requested route if destination was changed
+        if (
+            requested_destination != destination
+            and origin in LOCATION_COORDS
+            and requested_destination in LOCATION_COORDS
+        ):
+            origin_lat, origin_lon = LOCATION_COORDS[origin]
+            requested_lat, requested_lon = LOCATION_COORDS[requested_destination]
+
+            route_rows.append(
+                {
+                    "route_type": "Originally requested route",
+                    "start_lon": origin_lon,
+                    "start_lat": origin_lat,
+                    "end_lon": requested_lon,
+                    "end_lat": requested_lat,
+                    "color": [70, 170, 255],
+                }
+            )
+
+        layers = [
+            pdk.Layer(
+                "ScatterplotLayer",
+                data=map_df,
+                get_position="[lon, lat]",
+                get_radius=70000,
+                get_fill_color=[255, 165, 0],
+                pickable=True,
+            )
+        ]
+
+        if route_rows:
+            route_df = pd.DataFrame(route_rows)
+
+            layers.append(
+                pdk.Layer(
+                    "LineLayer",
+                    data=route_df,
+                    get_source_position="[start_lon, start_lat]",
+                    get_target_position="[end_lon, end_lat]",
+                    get_color="color",
+                    get_width=10,
+                    width_min_pixels=6,
+                    pickable=True,
+                )
+            )
+
+        st.pydeck_chart(
+            pdk.Deck(
+                map_style=None,
+                initial_view_state=pdk.ViewState(
+                    latitude=float(map_df["lat"].mean()),
+                    longitude=float(map_df["lon"].mean()),
+                    zoom=3.5,
+                    pitch=0,
+                ),
+                layers=layers,
+                tooltip={"html": "<b>{location}</b><br />{type}<br />{route_type}"},
+            ),
+            use_container_width=True,
+        )
+
         st.dataframe(map_df, use_container_width=True, hide_index=True)
+
     else:
         st.warning("This shipment uses locations that are not in the demo coordinate map.")
 
