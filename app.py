@@ -792,140 +792,140 @@ def show_delivery_prioritizer(delivery_priorities: pd.DataFrame):
 
 def show_route_intelligence(shipment_risk: pd.DataFrame):
     st.header("Route Intelligence Map")
-    st.write("Visualize shipment endpoints and inspect suspicious routes.")
+    st.write("Visualize shipment paths and inspect suspicious routes.")
 
-    selected_id = st.selectbox("Choose a shipment", shipment_risk["shipment_id"].tolist())
-    selected = shipment_risk[shipment_risk["shipment_id"] == selected_id].iloc[0]
+    selected_id = st.selectbox(
+        "Choose a shipment",
+        shipment_risk["shipment_id"].tolist(),
+    )
+
+    selected = shipment_risk[
+        shipment_risk["shipment_id"] == selected_id
+    ].iloc[0]
 
     origin = str(selected["origin"]).strip()
     destination = str(selected["destination"]).strip()
     requested_destination = str(selected["requested_destination"]).strip()
 
-    map_rows = []
+    missing_locations = []
 
-    if origin in LOCATION_COORDS:
-        lat, lon = LOCATION_COORDS[origin]
-        map_rows.append({"lat": lat, "lon": lon, "location": origin, "type": "Origin"})
+    if origin not in LOCATION_COORDS:
+        missing_locations.append(origin)
 
-    if destination in LOCATION_COORDS:
-        lat, lon = LOCATION_COORDS[destination]
-        map_rows.append({"lat": lat, "lon": lon, "location": destination, "type": "Destination"})
+    if destination not in LOCATION_COORDS:
+        missing_locations.append(destination)
 
-    if requested_destination != destination and requested_destination in LOCATION_COORDS:
-        lat, lon = LOCATION_COORDS[requested_destination]
+    if requested_destination not in LOCATION_COORDS:
+        missing_locations.append(requested_destination)
 
-        map_rows.append(
-            {
-                "lat": lat,
-                "lon": lon,
-                "location": requested_destination,
-                "type": "Requested destination",
-            }
-        )
-
-        if map_rows:
-            map_df = pd.DataFrame(map_rows)
-
-        route_rows = []
-
-        # Red line: actual shipment route
-        if origin in LOCATION_COORDS and destination in LOCATION_COORDS:
-            origin_lat, origin_lon = LOCATION_COORDS[origin]
-            destination_lat, destination_lon = LOCATION_COORDS[destination]
-
-            route_rows.append(
-                {
-                    "route_type": "Actual shipment route",
-                    "start_lon": origin_lon,
-                    "start_lat": origin_lat,
-                    "end_lon": destination_lon,
-                    "end_lat": destination_lat,
-                    "color": [255, 70, 70],
-                }
-            )
-
-        # Blue line: originally requested route if destination was changed
-        if (
-            requested_destination != destination
-            and origin in LOCATION_COORDS
-            and requested_destination in LOCATION_COORDS
-        ):
-            origin_lat, origin_lon = LOCATION_COORDS[origin]
-            requested_lat, requested_lon = LOCATION_COORDS[requested_destination]
-
-            route_rows.append(
-                {
-                    "route_type": "Originally requested route",
-                    "start_lon": origin_lon,
-                    "start_lat": origin_lat,
-                    "end_lon": requested_lon,
-                    "end_lat": requested_lat,
-                    "color": [70, 170, 255],
-                }
-            )
-
-        layers = [
-            pdk.Layer(
-                "ScatterplotLayer",
-                data=map_df,
-                get_position="[lon, lat]",
-                get_radius=70000,
-                get_fill_color=[255, 165, 0],
-                pickable=True,
-            )
-        ]
-
-        if route_rows:
-            route_df = pd.DataFrame(route_rows)
-
-            layers.append(
-                pdk.Layer(
-                    "LineLayer",
-                    data=route_df,
-                    get_source_position="[start_lon, start_lat]",
-                    get_target_position="[end_lon, end_lat]",
-                    get_color="color",
-                    get_width=10,
-                    width_min_pixels=6,
-                    pickable=True,
-                )
-            )
-
-        st.pydeck_chart(
-            pdk.Deck(
-                map_style=None,
-                initial_view_state=pdk.ViewState(
-                    latitude=float(map_df["lat"].mean()),
-                    longitude=float(map_df["lon"].mean()),
-                    zoom=3.5,
-                    pitch=0,
-                ),
-                layers=layers,
-                tooltip={"html": "<b>{location}</b><br />{type}<br />{route_type}"},
-            ),
-            use_container_width=True,
-        )
-
-        st.dataframe(map_df, use_container_width=True, hide_index=True)
-
-    else:
-        missing_locations = []
-
-        if origin not in LOCATION_COORDS:
-            missing_locations.append(origin)
-
-        if destination not in LOCATION_COORDS:
-            missing_locations.append(destination)
-
-        if requested_destination not in LOCATION_COORDS:
-            missing_locations.append(requested_destination)
-
+    if missing_locations:
         st.warning(
             "These location names are missing from LOCATION_COORDS: "
             + ", ".join(sorted(set(missing_locations)))
         )
 
         st.write("Supported locations:", list(LOCATION_COORDS.keys()))
+        return
+
+    origin_lat, origin_lon = LOCATION_COORDS[origin]
+    destination_lat, destination_lon = LOCATION_COORDS[destination]
+    requested_lat, requested_lon = LOCATION_COORDS[requested_destination]
+
+    map_rows = [
+        {
+            "lat": origin_lat,
+            "lon": origin_lon,
+            "location": origin,
+            "type": "Origin",
+        },
+        {
+            "lat": destination_lat,
+            "lon": destination_lon,
+            "location": destination,
+            "type": "Actual destination",
+        },
+    ]
+
+    if requested_destination != destination:
+        map_rows.append(
+            {
+                "lat": requested_lat,
+                "lon": requested_lon,
+                "location": requested_destination,
+                "type": "Originally requested destination",
+            }
+        )
+
+    path_rows = [
+        {
+            "path_type": "Actual shipment route",
+            "path": [
+                [origin_lon, origin_lat],
+                [destination_lon, destination_lat],
+            ],
+            "color": [255, 70, 70],
+        }
+    ]
+
+    if requested_destination != destination:
+        path_rows.append(
+            {
+                "path_type": "Originally requested route",
+                "path": [
+                    [origin_lon, origin_lat],
+                    [requested_lon, requested_lat],
+                ],
+                "color": [70, 170, 255],
+            }
+        )
+
+    map_df = pd.DataFrame(map_rows)
+    path_df = pd.DataFrame(path_rows)
+
+    layers = [
+        pdk.Layer(
+            "PathLayer",
+            data=path_df,
+            get_path="path",
+            get_color="color",
+            get_width=8,
+            width_min_pixels=6,
+            pickable=True,
+        ),
+        pdk.Layer(
+            "ScatterplotLayer",
+            data=map_df,
+            get_position="[lon, lat]",
+            get_radius=70000,
+            get_fill_color=[255, 165, 0],
+            pickable=True,
+        ),
+    ]
+
+    st.pydeck_chart(
+        pdk.Deck(
+            map_style=None,
+            initial_view_state=pdk.ViewState(
+                latitude=float(map_df["lat"].mean()),
+                longitude=float(map_df["lon"].mean()),
+                zoom=3.5,
+                pitch=0,
+            ),
+            layers=layers,
+            tooltip={
+                "html": "<b>{location}</b><br />{type}<br />{path_type}"
+            },
+        ),
+        use_container_width=True,
+    )
+
+    st.caption("Red line: actual route. Blue line: originally requested route.")
+
+    st.dataframe(
+        map_df,
+        use_container_width=True,
+        hide_index=True,
+    )
 
     left, right = st.columns(2)
 
@@ -939,7 +939,6 @@ def show_route_intelligence(shipment_risk: pd.DataFrame):
         st.metric("Route Changes", int(selected["route_changes"]))
         st.write(f"**Delay:** {int(selected['delay_days'])} day(s)")
         st.write(f"**Explanation:** {selected['flag_reason']}")
-
 
 def show_reliability_monitor(origin_reliability: pd.DataFrame):
     st.header("Origin Reliability Monitor")
