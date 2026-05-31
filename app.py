@@ -39,7 +39,6 @@ AUTH_ALLOWED_EMAILS_KEY = "SUPPLYSHIELD_ALLOWED_EMAILS"
 
 
 def get_secret_value(name: str, default: str = "") -> str:
-    """Read a value from environment variables first, then Streamlit secrets."""
     env_value = os.environ.get(name, "").strip()
     if env_value:
         return env_value
@@ -56,7 +55,6 @@ def get_secret_value(name: str, default: str = "") -> str:
 
 
 def get_allowed_emails() -> set[str]:
-    """Return the optional email allowlist from secrets or environment variables."""
     raw_emails = get_secret_value(AUTH_ALLOWED_EMAILS_KEY)
     return {
         email.strip().lower()
@@ -66,12 +64,6 @@ def get_allowed_emails() -> set[str]:
 
 
 def require_authentication():
-    """
-    Stop the app unless the user enters the correct dashboard password.
-
-    If SUPPLYSHIELD_ALLOWED_EMAILS is set, the entered email must also be
-    included in that comma-separated allowlist.
-    """
     st.sidebar.header("Access Control")
 
     if st.session_state.get("authenticated"):
