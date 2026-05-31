@@ -1077,8 +1077,7 @@ def main():
     elif page == "Origin Reliability Monitor":
         show_reliability_monitor(origin_reliability)
     elif page == "Historical Risk Trends":
-        show_
-        historical_trends(shipment_risk)
+        show_historical_trends(shipment_risk)
     else:
         show_cyber_simulator(shipment_risk)
 
